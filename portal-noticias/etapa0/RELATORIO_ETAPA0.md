@@ -187,6 +187,45 @@ O que o teste respondeu:
 5. **Saída em JSON: ok.** As cinco respostas vieram com o objeto pedido, sem falha de
    leitura. Na Etapa 1 a saída estruturada nativa substitui a extração por texto.
 
+### Teste 2, parte B: comparação de modelos do auditor
+
+Mesmas cinco afirmações, mesmas URLs e status do verificador (reaproveitados da parte A,
+sem nova cobrança da OpenAI), mesmo prompt e mesmas ferramentas. Comando:
+`python3 teste2_verificacao.py --comparar-auditores claude-sonnet-5-5 claude-haiku-5-5`.
+Saída em `saida/teste2b_comparacao_auditores.json`.
+
+| Modelo | Decisões iguais às do Opus | Custo médio por afirmação | Faixa | Tokens de entrada (média) |
+| --- | --- | --- | --- | --- |
+| `claude-opus-5-5` | (referência) | US$ 0,152 | US$ 0,116 a 0,264 | 33.125 |
+| `claude-sonnet-5-5` | 5 de 5 | US$ 0,068 | US$ 0,039 a 0,146 | 29.492 |
+| `claude-haiku-5-5` | 5 de 5 | US$ 0,010 | US$ 0,003 a 0,034 | 52.949 |
+
+O Sonnet custou 45 por cento do Opus e o Haiku, 7 por cento. O Haiku não chega ao
+um quarenta avos da tabela porque usou mais tokens: abriu as páginas duas ou três vezes
+e, no caso do STF, fez duas buscas e leu 122 mil tokens.
+
+Qualidade, além da decisão:
+
+- **Sonnet:** trechos literais em todos os casos e declaração explícita do que não leu
+  ("Só li o título e a descrição, não o texto integral da lei"). No caso do STF,
+  consultou também o Planalto e registrou que a redação atual do art. 101 é a da
+  EC 122/2022, o que confere com o trecho citado ("menos de setenta anos").
+- **Haiku:** no caso do STF, o trecho é paráfrase com citação parcial, não a frase
+  literal, e a busca passou por fontes de pouca autoridade (Goodreads, questões de
+  concurso) antes de chegar ao portal do STF. No caso da Lei 14.133, afirma que "o texto
+  do art. 1º confirma" a afirmação; isso não pôde ser conferido porque o script não grava
+  o texto da página aberta.
+- **Os três modelos usaram "contestada"** para afirmação desmentida, o que confirma que o
+  problema está na lista de status do prompt, não no modelo.
+
+Limite do teste: cinco afirmações fáceis, todas com fonte oficial clara, não separam bem
+os modelos. A escolha final pede um conjunto mais difícil: números e datas próximos do
+correto, afirmações de fato parciais, páginas longas e fontes não oficiais.
+
+Recomendação provisória: `claude-sonnet-5-5` como auditor padrão. O Haiku é candidato a
+uma triagem barata ou a afirmações simples, se passar no conjunto difícil; o Opus fica
+para casos em que verificador e auditor discordem.
+
 ### Teste 3: síntese de voz (mesmo roteiro de 931 caracteres, 154 palavras)
 
 | Serviço | Duração | Custo da amostra | Custo por minuto | Observação |
@@ -211,13 +250,15 @@ notícia mais resumo diário de 12 mil caracteres (1,5 milhão de caracteres por
 | Agrupamento e extração (`gpt-6-luna` / `gpt-6.1-terra`) | US$ 3 | US$ 10 | Tabela |
 | Verificação (`gpt-6.1-sol`) | US$ 70 (uma chamada por candidato, 24 por dia) | US$ 135 (uma chamada por afirmação, 144 por dia; **medido**: US$ 0,031) | Teste 2A |
 | Redação (`gpt-6.1-sol`) | US$ 15 | US$ 25 | Tabela |
-| Auditoria (`claude-sonnet-5-5` / `claude-opus-5-5`) | US$ 120 (Sonnet, 3 afirmações centrais por notícia, 54 por dia; estimado pela proporção de preços) | US$ 655 (Opus, todas as afirmações, 144 por dia; **medido**: US$ 0,152) | Teste 2B |
+| Auditoria (`claude-sonnet-5-5` / `claude-opus-5-5`) | US$ 110 (Sonnet, 3 afirmações centrais por notícia, 54 por dia; **medido**: US$ 0,068) | US$ 655 (Opus, todas as afirmações, 144 por dia; **medido**: US$ 0,152) | Teste 2B |
 | Áudio | US$ 23 (xAI TTS; **medido**: US$ 0,014 por minuto) | US$ 60 a 125 (ElevenLabs) | Teste 3 e tabela |
 | Hospedagem | US$ 5 | US$ 10 | Servidor pequeno |
-| **Total aproximado** | **US$ 280** | **US$ 985 a 1.050** | |
+| **Total aproximado** | **US$ 270** | **US$ 985 a 1.050** | |
 
 Com a medição do teste 2B, **a auditoria passa a ser a etapa mais cara** no cenário amplo,
-seguida da verificação e da coleta. A estimativa anterior (US$ 35 a 75 para auditoria)
+seguida da verificação e da coleta. Outras combinações medidas para a auditoria, por mês:
+Sonnet em todas as afirmações, US$ 295; Haiku nas afirmações centrais, US$ 16; Haiku em
+todas, US$ 45. A estimativa anterior (US$ 35 a 75 para auditoria)
 estava baixa porque não previa o tamanho das páginas abertas. Alavancas da auditoria:
 auditar só as afirmações centrais de cada notícia; usar `claude-sonnet-5-5` (metade do
 preço por token do Opus) ou `claude-haiku-5-5` (um quarenta avos), o que ainda precisa ser
@@ -252,9 +293,10 @@ buscas limitadas e `allowed_domains`; teto de gasto diário desde a Etapa 1.
 
 ## 5. Próximos passos
 
-1. Repetir a parte B com `claude-sonnet-5-5` e `claude-haiku-5-5` nas mesmas cinco
-   afirmações, para decidir o modelo do auditor com base em qualidade e custo medidos
-   (custo esperado do teste: menos de US$ 0,50).
+1. Montar um conjunto de afirmações difíceis (cerca de 15) e repetir a comparação dos
+   três modelos do auditor, já com a lista de status corrigida (incluir "falsa") e
+   gravando o texto de cada página aberta, para que trechos e justificativas possam ser
+   conferidos.
 2. Medir a coleta com perfis curados (`allowed_x_handles`) em um tema, para fechar a
    decisão "perfis curados ou ranking livre" com número de posts e custo.
 3. Decidir o serviço de voz após ouvir as amostras (ElevenLabs adiada).

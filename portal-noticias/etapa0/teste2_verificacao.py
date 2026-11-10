@@ -14,6 +14,7 @@ Documentação consultada em 10/11/2026:
 Uso: OPENAI_API_KEY=... ANTHROPIC_API_KEY=... python teste2_verificacao.py
 Por padrão usa cinco afirmações fixas sobre direito brasileiro (três verdadeiras,
 uma falsa, uma parcial). Com --do-teste1, extrai afirmações da saída do teste 1.
+Com --comparar-auditores MODELO [MODELO ...], roda só a parte B, sobre a parte A já gravada.
 """
 import argparse
 import datetime as dt
@@ -114,9 +115,10 @@ def verificar_openai(client: OpenAI, afirmacao: str) -> dict:
     }
 
 
-def auditar_anthropic(client: anthropic.Anthropic, afirmacao: str, url: Optional[str], status: str) -> dict:
+def auditar_anthropic(client: anthropic.Anthropic, afirmacao: str, url: Optional[str], status: str,
+                      modelo: str = MODELO_ANTHROPIC) -> dict:
     with client.messages.stream(
-        model=MODELO_ANTHROPIC,
+        model=modelo,
         max_tokens=4096,
         output_config={"effort": "medium"},
         messages=[{"role": "user", "content": PROMPT_AUDITA.format(
@@ -147,10 +149,10 @@ def auditar_anthropic(client: anthropic.Anthropic, afirmacao: str, url: Optional
     u = msg.usage
     st = u.server_tool_use
     buscas = getattr(st, "web_search_requests", 0) or 0
-    custo = custo_tokens(MODELO_ANTHROPIC, u.input_tokens, u.output_tokens,
+    custo = custo_tokens(modelo, u.input_tokens, u.output_tokens,
                          u.cache_read_input_tokens or 0) + buscas * FERRAMENTAS["anthropic_web_search_por_busca"]
     return {
-        "modelo": MODELO_ANTHROPIC, "stop_reason": msg.stop_reason,
+        "modelo": modelo, "stop_reason": msg.stop_reason,
         "resultado": parsed, "texto_bruto": texto if parsed is None else None,
         "urls_abertas_ou_encontradas": sorted(set(urls_abertas)),
         "buscas": buscas, "fetches": getattr(st, "web_fetch_requests", 0),
@@ -164,16 +166,52 @@ def afirmacoes_do_teste1() -> list[str]:
     return [p["assunto"] for p in posts[:5]]
 
 
+def cliente_anthropic() -> anthropic.Anthropic:
+    # A chave pode vir de ANTHROPIC_API_KEY ou de PORTAL_ANTHROPIC_KEY (variável do ambiente).
+    return anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("PORTAL_ANTHROPIC_KEY"))
+
+
+def comparar_auditores(modelos: list[str]) -> None:
+    base = json.loads((SAIDA / "teste2_verificacao.json").read_text())
+    ant = cliente_anthropic()
+    resultado = {"data": dt.datetime.now(dt.timezone.utc).isoformat(),
+                 "base": "saida/teste2_verificacao.json", "modelos": {}}
+    for modelo in modelos:
+        itens = []
+        for i, item in enumerate(base["itens"], 1):
+            r = item["openai"]["resultado"] or {}
+            try:
+                a = auditar_anthropic(ant, item["afirmacao"], r.get("url"),
+                                      r.get("status", "nao_confirmada"), modelo)
+            except anthropic.APIError as e:
+                a = {"modelo": modelo, "erro": f"{type(e).__name__}: {e}"[:500], "custo_usd": 0.0}
+            itens.append({"afirmacao": item["afirmacao"], "verificador": r.get("status"), "auditor": a})
+            res = a.get("resultado") or {}
+            print(f"[{modelo}] {i}: {res.get('decisao')}/{res.get('status')}  "
+                  f"fetches={a.get('fetches')} buscas={a.get('buscas')}  US$ {a['custo_usd']}"
+                  + (f"  ERRO {a['erro'][:150]}" if "erro" in a else ""), flush=True)
+        medio = round(sum(x["auditor"]["custo_usd"] for x in itens) / len(itens), 4)
+        resultado["modelos"][modelo] = {"itens": itens, "custo_medio_usd": medio}
+        print(f"[{modelo}] custo médio por afirmação: US$ {medio}\n", flush=True)
+    destino = SAIDA / "teste2b_comparacao_auditores.json"
+    destino.write_text(json.dumps(resultado, ensure_ascii=False, indent=2, default=str))
+    print(f"Saída: {destino}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--do-teste1", action="store_true")
     ap.add_argument("--so-openai", action="store_true")
+    ap.add_argument("--comparar-auditores", nargs="+", metavar="MODELO",
+                    help="Só a parte B: reaproveita a parte A gravada em saida/teste2_verificacao.json "
+                         "e audita as mesmas afirmações com cada modelo indicado.")
     args = ap.parse_args()
+    if args.comparar_auditores:
+        comparar_auditores(args.comparar_auditores)
+        return
     afirmacoes = afirmacoes_do_teste1() if args.do_teste1 else AFIRMACOES_FIXAS
     oai = OpenAI(timeout=600)
-    # A chave da Anthropic pode vir de ANTHROPIC_API_KEY ou de PORTAL_ANTHROPIC_KEY (variável do ambiente).
-    chave_ant = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("PORTAL_ANTHROPIC_KEY")
-    ant = None if args.so_openai else anthropic.Anthropic(api_key=chave_ant)
+    ant = None if args.so_openai else cliente_anthropic()
     resultado = {"data": dt.datetime.now(dt.timezone.utc).isoformat(), "itens": []}
     for i, af in enumerate(afirmacoes, 1):
         print(f"[{i}] {af[:90]}", flush=True)
