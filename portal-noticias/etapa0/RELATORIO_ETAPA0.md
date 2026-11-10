@@ -1,9 +1,8 @@
-# Relatório da Etapa 0 (atualizado em 10/11/2026, 21h30 UTC)
+# Relatório da Etapa 0 (atualizado em 10/11/2026)
 
 Situação: documentação oficial consultada, scripts prontos, fontes oficiais validadas e
-**testes executados com chamadas reais** para xAI e OpenAI. Faltam: a auditoria com a
-API da Anthropic (teste 2, parte B), que depende de a chave ser adicionada ao ambiente, e
-a amostra de voz da ElevenLabs (adiada por decisão do autor). As seções 2 e 3 trazem os
+**testes executados com chamadas reais** para xAI, OpenAI e Anthropic. Falta apenas a
+amostra de voz da ElevenLabs (adiada por decisão do autor). As seções 2 e 3 trazem os
 números medidos.
 
 ## 1. O que a documentação já responde
@@ -144,10 +143,49 @@ As fontes escolhidas foram primárias (textos oficiais na Câmara e página da A
 desvio foi classificar a afirmação parcial como "não confirmada" em vez de "parcial"; a
 justificativa estava correta, então é ajuste de prompt, não de capacidade.
 
-### Teste 2, parte B: auditoria (Anthropic)
+Uma segunda execução da parte A (feita junto com a parte B) repetiu os cinco status e as
+mesmas fontes, com média de US$ 0,029 por afirmação.
 
-Não executada: não há chave da Anthropic no ambiente. O script está pronto
-(`claude-opus-5-5` com `web_fetch` abrindo a URL apontada pelo verificador).
+### Teste 2, parte B: auditoria (Anthropic, `claude-opus-5-5`, esforço médio)
+
+O auditor recebeu cada afirmação com a URL e o status dados pela parte A, abriu a URL com
+`web_fetch` (limite de 40 mil tokens de conteúdo por página) e podia fazer até duas buscas.
+
+| Afirmação | Verificador (OpenAI) | Auditor (Claude) | Fetches / buscas | Tokens entrada / saída | Custo |
+| --- | --- | --- | --- | --- | --- |
+| Lei 14.133/2021 | confirmada | aprovar / confirmada | 1 / 0 | 26.659 / 683 | US$ 0,120 |
+| Código Civil, Lei 10.406/2002 | confirmada | aprovar / confirmada | 1 / 0 | 31.610 / 739 | US$ 0,141 |
+| EC 103/2019 | confirmada | aprovar / confirmada | 1 / 0 | 25.665 / 653 | US$ 0,116 |
+| STF com quinze ministros | nao_confirmada | rejeitar / contestada | 1 / 1 | 57.647 / 1.164 | US$ 0,264 |
+| LGPD integral em agosto de 2020 | nao_confirmada | rejeitar / contestada | 1 / 0 | 24.046 / 1.008 | US$ 0,116 |
+
+Média: **US$ 0,152 por afirmação**, cerca de cinco vezes o custo da verificação. A API da
+Anthropic não devolve o valor cobrado; o custo foi calculado pela tabela de preços a partir
+dos tokens e buscas informados em `usage`. Quase todo o custo vem dos tokens de entrada,
+isto é, do texto da página aberta.
+
+O que o teste respondeu:
+
+1. **Concordância nas decisões: cinco de cinco.** O auditor aprovou as três afirmações
+   verdadeiras e rejeitou as duas falsas, sempre citando trecho literal da fonte oficial.
+2. **O auditor conferiu de fato a página.** Em cada caso registrou a URL aberta e o trecho
+   encontrado. No caso do STF, informou que a página indicada pelo verificador (a
+   Constituição no site da Câmara) chegou incompleta, terminando por volta do art. 39, e
+   buscou o art. 101 no portal do STF ("compõe-se de onze Ministros"). A causa provável do
+   corte é o próprio limite de 40 mil tokens do script, já que a Constituição inteira é bem
+   maior; não é defeito da página. Lição para a Etapa 1: a URL do verificador deve apontar
+   para o dispositivo específico (o artigo), não para a norma inteira.
+3. **A afirmação sobre a LGPD foi mal classificada no gabarito.** O teste a esperava como
+   "parcial", mas os dois pontos estão errados: a maior parte da lei vigorou em 18/9/2020
+   (não em agosto) e as sanções só em 1º/8/2021, segundo a ANPD. A rejeição do auditor
+   está correta, e o "nao_confirmada" do verificador também é defensável.
+4. **Os status precisam de ajuste.** O auditor usou "contestada" para "a fonte oficial
+   desmente a afirmação", enquanto o prompt define "contestada" como "fontes confiáveis se
+   contradizem". A lista de status da Etapa 1 deve incluir um valor próprio para afirmação
+   desmentida (por exemplo, "falsa"), separado de "nao_confirmada" (nada encontrado) e de
+   "contestada" (fontes divergentes).
+5. **Saída em JSON: ok.** As cinco respostas vieram com o objeto pedido, sem falha de
+   leitura. Na Etapa 1 a saída estruturada nativa substitui a extração por texto.
 
 ### Teste 3: síntese de voz (mesmo roteiro de 931 caracteres, 154 palavras)
 
@@ -173,14 +211,20 @@ notícia mais resumo diário de 12 mil caracteres (1,5 milhão de caracteres por
 | Agrupamento e extração (`gpt-6-luna` / `gpt-6.1-terra`) | US$ 3 | US$ 10 | Tabela |
 | Verificação (`gpt-6.1-sol`) | US$ 70 (uma chamada por candidato, 24 por dia) | US$ 135 (uma chamada por afirmação, 144 por dia; **medido**: US$ 0,031) | Teste 2A |
 | Redação (`gpt-6.1-sol`) | US$ 15 | US$ 25 | Tabela |
-| Auditoria (`claude-sonnet-5-5` / `claude-opus-5-5`) | US$ 35 | US$ 75 | Tabela; a medir no teste 2B |
+| Auditoria (`claude-sonnet-5-5` / `claude-opus-5-5`) | US$ 120 (Sonnet, 3 afirmações centrais por notícia, 54 por dia; estimado pela proporção de preços) | US$ 655 (Opus, todas as afirmações, 144 por dia; **medido**: US$ 0,152) | Teste 2B |
 | Áudio | US$ 23 (xAI TTS; **medido**: US$ 0,014 por minuto) | US$ 60 a 125 (ElevenLabs) | Teste 3 e tabela |
 | Hospedagem | US$ 5 | US$ 10 | Servidor pequeno |
-| **Total aproximado** | **US$ 195** | **US$ 405 a 470** | |
+| **Total aproximado** | **US$ 280** | **US$ 985 a 1.050** | |
 
-Coleta e verificação somam dois terços do custo. As alavancas continuam as mesmas:
-perfis curados e `max_turns` baixo na coleta; verificação por candidato com buscas
-limitadas e `allowed_domains`; teto de gasto diário desde a Etapa 1.
+Com a medição do teste 2B, **a auditoria passa a ser a etapa mais cara** no cenário amplo,
+seguida da verificação e da coleta. A estimativa anterior (US$ 35 a 75 para auditoria)
+estava baixa porque não previa o tamanho das páginas abertas. Alavancas da auditoria:
+auditar só as afirmações centrais de cada notícia; usar `claude-sonnet-5-5` (metade do
+preço por token do Opus) ou `claude-haiku-5-5` (um quarenta avos), o que ainda precisa ser
+testado quanto à qualidade; reduzir `max_content_tokens` e apontar para o dispositivo
+específico da norma, para que cada página aberta seja menor. As demais alavancas
+continuam: perfis curados e `max_turns` baixo na coleta; verificação por candidato com
+buscas limitadas e `allowed_domains`; teto de gasto diário desde a Etapa 1.
 
 ## 4. Riscos identificados
 
@@ -196,12 +240,21 @@ limitadas e `allowed_domains`; teto de gasto diário desde a Etapa 1.
 5. **Depreciações frequentes** (OpenAI desliga `gpt-4o-mini-tts` em janeiro de 2027; xAI
    retirou modelos em maio de 2026). Mitigação: nomes de modelo e de ferramenta em configuração,
    nunca no código.
-6. **Injeção de instruções por conteúdo externo.** Mitigação já prevista nos prompts de teste:
+6. **Custo da auditoria proporcional ao tamanho das páginas** (teste 2B: 24 mil a 58 mil
+   tokens de entrada por afirmação). Mitigação: limite de conteúdo por página, URLs que
+   apontem para o trecho específico, auditoria só das afirmações centrais e modelo mais
+   barato se a qualidade se mantiver.
+7. **Páginas cortadas pelo limite de conteúdo podem esconder o trecho que sustenta a
+   afirmação.** Mitigação: o auditor já busca outra fonte nesse caso (teste 2B, item 4);
+   na Etapa 1, registrar quando a página veio truncada.
+8. **Injeção de instruções por conteúdo externo.** Mitigação já prevista nos prompts de teste:
    conteúdo de posts e páginas é marcado como dado e os prompts mandam ignorar comandos.
 
 ## 5. Próximos passos
 
-1. Adicionar a chave da Anthropic ao ambiente e rodar a parte B do teste 2.
+1. Repetir a parte B com `claude-sonnet-5-5` e `claude-haiku-5-5` nas mesmas cinco
+   afirmações, para decidir o modelo do auditor com base em qualidade e custo medidos
+   (custo esperado do teste: menos de US$ 0,50).
 2. Medir a coleta com perfis curados (`allowed_x_handles`) em um tema, para fechar a
    decisão "perfis curados ou ranking livre" com número de posts e custo.
 3. Decidir o serviço de voz após ouvir as amostras (ElevenLabs adiada).
