@@ -171,7 +171,9 @@ def main() -> None:
     args = ap.parse_args()
     afirmacoes = afirmacoes_do_teste1() if args.do_teste1 else AFIRMACOES_FIXAS
     oai = OpenAI(timeout=600)
-    ant = None if args.so_openai else anthropic.Anthropic()
+    # A chave da Anthropic pode vir de ANTHROPIC_API_KEY ou de PORTAL_ANTHROPIC_KEY (variável do ambiente).
+    chave_ant = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("PORTAL_ANTHROPIC_KEY")
+    ant = None if args.so_openai else anthropic.Anthropic(api_key=chave_ant)
     resultado = {"data": dt.datetime.now(dt.timezone.utc).isoformat(), "itens": []}
     for i, af in enumerate(afirmacoes, 1):
         print(f"[{i}] {af[:90]}", flush=True)
