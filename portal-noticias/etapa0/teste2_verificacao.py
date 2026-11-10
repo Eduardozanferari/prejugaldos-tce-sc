@@ -78,7 +78,9 @@ Status dado pelo verificador: {status}"""
 
 
 def verificar_openai(client: OpenAI, afirmacao: str) -> dict:
-    resp = client.responses.parse(
+    # Streaming: respostas com busca demoram mais de 30 s sem enviar bytes e
+    # proxies intermediários encerram a conexão nesse caso.
+    with client.responses.stream(
         model=MODELO_OPENAI,
         input=[{"role": "user", "content": PROMPT_VERIFICA.format(afirmacao=afirmacao)}],
         tools=[{"type": "web_search", "search_context_size": "medium",
@@ -86,7 +88,10 @@ def verificar_openai(client: OpenAI, afirmacao: str) -> dict:
         include=["web_search_call.action.sources"],
         text_format=Verificacao,
         reasoning={"effort": "low"},
-    )
+    ) as stream:
+        for _ in stream:
+            pass
+        resp = stream.get_final_response()
     buscas, fontes, acoes = 0, [], []
     for item in resp.output:
         if item.type == "web_search_call":
@@ -110,7 +115,7 @@ def verificar_openai(client: OpenAI, afirmacao: str) -> dict:
 
 
 def auditar_anthropic(client: anthropic.Anthropic, afirmacao: str, url: Optional[str], status: str) -> dict:
-    msg = client.messages.create(
+    with client.messages.stream(
         model=MODELO_ANTHROPIC,
         max_tokens=4096,
         output_config={"effort": "medium"},
@@ -121,7 +126,8 @@ def auditar_anthropic(client: anthropic.Anthropic, afirmacao: str, url: Optional
              "citations": {"enabled": True}, "max_content_tokens": 40000},
             {"type": "web_search_20260318", "name": "web_search", "max_uses": 2},
         ],
-    )
+    ) as stream:
+        msg = stream.get_final_message()
     urls_abertas, texto = [], ""
     for bloco in msg.content:
         t = getattr(bloco, "type", "")
@@ -164,7 +170,7 @@ def main() -> None:
     ap.add_argument("--so-openai", action="store_true")
     args = ap.parse_args()
     afirmacoes = afirmacoes_do_teste1() if args.do_teste1 else AFIRMACOES_FIXAS
-    oai = OpenAI()
+    oai = OpenAI(timeout=600)
     ant = None if args.so_openai else anthropic.Anthropic()
     resultado = {"data": dt.datetime.now(dt.timezone.utc).isoformat(), "itens": []}
     for i, af in enumerate(afirmacoes, 1):
