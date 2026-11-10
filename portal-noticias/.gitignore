@@ -1,0 +1,6 @@
+# saídas dos testes (JSON, áudio) e ambiente local
+etapa0/saida/
+.venv/
+venv/
+__pycache__/
+.env

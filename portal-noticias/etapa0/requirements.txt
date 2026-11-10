@@ -1,0 +1,4 @@
+openai>=3.49
+anthropic>=2.7
+requests>=2.32
+pydantic>=2
