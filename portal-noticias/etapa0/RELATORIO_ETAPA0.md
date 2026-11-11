@@ -1,9 +1,10 @@
-# Relatório da Etapa 0 (atualizado em 10/11/2026)
+# Relatório da Etapa 0 (encerrado em 11/11/2026)
 
-Situação: documentação oficial consultada, scripts prontos, fontes oficiais validadas e
-**testes executados com chamadas reais** para xAI, OpenAI e Anthropic. Falta apenas a
-amostra de voz da ElevenLabs (adiada por decisão do autor). As seções 2 e 3 trazem os
-números medidos.
+Situação: **Etapa 0 encerrada.** Todos os testes foram executados com chamadas reais para
+xAI, OpenAI e Anthropic, inclusive os complementares (1B, perfis curados; 2C, confirmação em
+afirmações difíceis). O único teste não feito é a voz da ElevenLabs: a chave salva no
+ambiente é rejeitada pelo serviço ("Invalid API key"). As decisões estão na seção 5 e a
+primeira edição da versão beta, na seção 6.
 
 ## 1. O que a documentação já responde
 
@@ -236,6 +237,82 @@ para casos em que verificador e auditor discordem.
 
 Os dois MP3 foram entregues para avaliação de qualidade pelo autor.
 
+Repetição em 11/11/2026, com a ElevenLabs incluída: a chave salva no ambiente foi rejeitada
+pelo serviço (HTTP 401, "Invalid API key", tanto em `/v1/voices` quanto em
+`/v1/user/subscription`), como já acontecera em 10/11. A xAI repetiu o resultado (59,3 s,
+US$ 0,014). O teste da ElevenLabs depende de uma chave válida.
+
+### Teste 1B: coleta no X com perfis curados (`allowed_x_handles`)
+
+Mesmo modelo, prompt e janela do teste 1, com a busca restrita a perfis curados: em Direito,
+nove contas institucionais e veículos jurídicos (STF, STJ, TSE, CNJ, Câmara, Senado, OAB, JOTA,
+Migalhas); em Tecnologia, catorze fabricantes e veículos especializados.
+
+| Tema | Execução | Posts buscados | Custo cobrado | Perfis que trouxeram posts |
+| --- | --- | --- | --- | --- |
+| Direito | 1 | 36 | US$ 0,26 | SenadoFederal (6), STF_oficial (2) |
+| Direito | 2 | 40 | US$ 0,31 | SenadoFederal (4), STF_oficial (2), STJnoticias (2) |
+| Tecnologia | 1 | 127 | US$ 1,10 | Tecnoblog (5), canaltech (3) |
+| Tecnologia | 2 | 33 | US$ 0,23 | Tecnoblog (6), canaltech (2) |
+
+| Medida | Ranking livre (teste 1) | Perfis curados (1B) |
+| --- | --- | --- |
+| Jaccard entre execuções, Direito | 0,0 | **0,6** |
+| Jaccard entre execuções, Tecnologia | 0,0 | **0,33** |
+| Custo médio por tema, Direito | US$ 0,32 | US$ 0,28 |
+| Custo médio por tema, Tecnologia | US$ 0,71 | US$ 0,67 (de 0,23 a 1,10) |
+
+Conclusões:
+
+1. **A estabilidade melhorou muito**, e as pautas passaram a ser fatos (decisões do STF e do
+   STJ, leis sancionadas, lançamentos), em vez de anúncios de jogos e posts de baixo alcance.
+2. **O custo quase não caiu** e continua instável em Tecnologia (uma execução buscou 127 posts).
+   O controle de custo fica com o teto diário e o `max_turns`.
+3. **Só parte dos perfis rende posts.** Com o prompt em português, as contas em inglês dos
+   fabricantes não aparecem; os veículos brasileiros, sim. Na beta, os perfis viraram um campo
+   editável por tema no painel, e a coleta oficial por RSS cobre os comunicados dos fabricantes.
+
+Decisão: **perfis curados por tema**, como previa a alternativa do briefing.
+
+### Teste 2C: verificação e confirmação em afirmações difíceis
+
+Papéis conforme decisão do autor (11/11/2026): a OpenAI verifica e revisa; o Claude apenas
+confirma o resultado da OpenAI. Uma afirmação só é publicada se a OpenAI a der como confirmada
+e o Claude concordar. Quinze afirmações com gabarito conferido em fonte primária: dez
+verdadeiras, três falsas (Marco Civil "de 2015"; idade máxima de 65 anos para o STF, que é 70
+desde a EC 122/2022; o mito dos 10% do cérebro) e duas parciais (CPC "em vigor em março de
+2015", que vigorou em 2016; Lei 8.666 revogada "integralmente apenas em 2023", quando os crimes
+foram revogados em 2021). Novidades em relação ao teste 2: status "falsa" separado de
+"nao_confirmada" e "contestada"; texto das páginas abertas pelo Claude gravado; limite de
+25 mil tokens por página. Script: `teste2c_confirmacao.py`.
+
+| Medida | OpenAI (`gpt-6.1-sol`) | Claude Sonnet 5.5 | Claude Haiku 5.5 |
+| --- | --- | --- | --- |
+| Status igual ao gabarito | 14 de 15 | | |
+| Afirmações publicadas (verificador e confirmador de acordo) | | 10 | 6 |
+| Publicadas que não eram verdadeiras | | **0** | **0** |
+| Verdadeiras bloqueadas | | **0** | 4 |
+| Custo médio por afirmação | US$ 0,031 | US$ 0,063 | US$ 0,006 |
+
+O que o teste mostrou:
+
+1. **O único erro da OpenAI foi pego pelos dois confirmadores.** Ela deu como confirmada a
+   revogação "integral apenas em 2023" da Lei 8.666; os dois apontaram, na própria página, que
+   os arts. 89 a 108 foram revogados em 2021.
+2. **O Haiku bloqueou verdadeiras quando a fonte não abria.** Nos quatro casos, a página
+   apontada pela OpenAI não abriu para o Claude (Planalto com "Acesso Negado"; artigos da Wiley
+   e da PNAS inacessíveis) e o Haiku não conseguiu buscar outra cópia. O Sonnet, nas mesmas
+   situações, achou cópias oficiais da mesma fonte e confirmou corretamente.
+3. **Os trechos são verificáveis.** Nas páginas que abriram, o trecho citado pelo confirmador
+   foi encontrado no texto gravado em todos os casos conferidos automaticamente.
+4. **"Falsa" e "parcial" ainda se confundem** quando a afirmação tem uma parte certa e outra
+   errada (Marco Civil "de 2015": o número está certo e o ano, errado). Como nenhuma das duas
+   classificações leva à publicação, a diferença não afeta o portal.
+
+Decisão: **`claude-sonnet-5-5` como confirmador**, só nas afirmações que a OpenAI deu como
+confirmadas. O Haiku fica descartado por bloquear verdadeiras; o Opus não é necessário, já que
+o Sonnet não errou e custa menos da metade.
+
 ## 3. Estimativa de custo mensal (seis temas, execução diária)
 
 Agora com as medições dos testes 1, 2A e 3 onde existem; o restante segue por tabela.
@@ -291,14 +368,56 @@ buscas limitadas e `allowed_domains`; teto de gasto diário desde a Etapa 1.
 8. **Injeção de instruções por conteúdo externo.** Mitigação já prevista nos prompts de teste:
    conteúdo de posts e páginas é marcado como dado e os prompts mandam ignorar comandos.
 
-## 5. Próximos passos
+## 5. Decisões que encerram a Etapa 0
 
-1. Montar um conjunto de afirmações difíceis (cerca de 15) e repetir a comparação dos
-   três modelos do auditor, já com a lista de status corrigida (incluir "falsa") e
-   gravando o texto de cada página aberta, para que trechos e justificativas possam ser
-   conferidos.
-2. Medir a coleta com perfis curados (`allowed_x_handles`) em um tema, para fechar a
-   decisão "perfis curados ou ranking livre" com número de posts e custo.
-3. Decidir o serviço de voz após ouvir as amostras (ElevenLabs adiada).
-4. Definir o teto de gasto mensal a partir da seção 3.
-5. Aprovação da arquitetura (`ARQUITETURA.md`) antes da Etapa 1.
+| Questão | Decisão | Base |
+| --- | --- | --- |
+| Coleta no X | `grok-4.7` com `x_search`, perfis curados por tema, `max_turns` 2, uma nova tentativa | Testes 1 e 1B |
+| Métricas de engajamento | Não são exibidas: a API não as devolve em campo estruturado | Teste 1 |
+| Coleta oficial | Feeds RSS que respondem (Câmara, Senado, Agência Brasil, fabricantes, Nature, NASA, Jornal da USP) | Validação de 11/11 |
+| Verificação | `gpt-6.1-sol` com `web_search`, uma chamada por afirmação central, até 4 por pauta | Testes 2A e 2C |
+| Confirmação | `claude-sonnet-5-5` com `web_fetch` e no máximo uma busca, só nas afirmações confirmadas pela OpenAI | Testes 2B e 2C |
+| Regra de publicação | Pauta publicada só com pelo menos 2 afirmações aprovadas pelos dois; as demais são cortadas | Decisão do autor e teste 2C |
+| Voz | xAI TTS, voz `eve`, `pt-BR` (US$ 0,014 por minuto); ElevenLabs quando houver chave válida | Teste 3 |
+| Teto de gasto | US$ 10 por dia e US$ 200 por mês, editáveis no painel | Seção 3 e seção 6 |
+| Arquitetura | A de `ARQUITETURA.md`, implementada na beta (`../briefing/`) | |
+
+
+## 6. Primeira edição da versão beta (11/11/2026)
+
+A versão beta (`../briefing/`, instruções em `../README.md`) rodou a edição completa dos seis
+temas com chamadas reais. Por causa de uma alteração de prompt feita durante a execução, a edição
+saiu em duas execuções (Direito e Tribunais na primeira; Política, Tecnologia, Cultura e Ciência na
+segunda); os números abaixo somam as duas.
+
+| Medida | Resultado |
+| --- | --- |
+| Pautas avaliadas | 18 (3 por tema) |
+| Notícias publicadas | 14 |
+| Pautas descartadas | 4, todas por terem menos de 2 afirmações aprovadas pelos dois verificadores |
+| Afirmações verificadas pela OpenAI | 49: 45 confirmadas, 3 parciais, 1 contestada |
+| Confirmações do Claude (Sonnet) | 45: concordou em 40, discordou em 5 |
+| Chamadas com falha | 0 |
+| Áudios | 14 notícias e 1 resumo do dia (8.727 caracteres) |
+| **Custo da edição** | **US$ 6,65** |
+
+| Etapa | Chamadas | Custo | Parcela |
+| --- | --- | --- | --- |
+| Confirmação (`claude-sonnet-5-5`) | 45 | US$ 2,56 | 38% |
+| Verificação (`gpt-6.1-sol`) | 49 | US$ 2,20 | 33% |
+| Coleta no X (`grok-4.7`) | 7 | US$ 1,67 | 25% |
+| Voz (xAI) | 15 | US$ 0,13 | 2% |
+| Redação e seleção (OpenAI) | 20 | US$ 0,09 | 1% |
+
+Por tema, a edição custou de US$ 0,79 (Cultura) a US$ 1,45 (Política).
+
+As cinco discordâncias do Claude foram pertinentes: em quatro, ele apontou na própria página que a
+afirmação exagerava ou simplificava o fato (por exemplo, "a MP segue para o Senado", quando a página
+mostra a matéria enviada à Câmara; "multa motivada por informações incompletas", quando esse foi só um
+dos motivos). Na quinta, a chamada terminou sem resposta (`stop_reason=tool_use`) e a afirmação foi
+cortada, o lado seguro; a beta agora repete a chamada uma vez nesse caso.
+
+Custo mensal projetado, com uma edição por dia: **cerca de US$ 200**, que é exatamente o teto
+mensal padrão. Com esse teto, as últimas edições do mês podem ser interrompidas. O teto deve ser
+ajustado no painel (por exemplo, US$ 230) ou o custo reduzido: as alavancas são menos pautas por tema,
+menos temas, e confirmar só as afirmações centrais.

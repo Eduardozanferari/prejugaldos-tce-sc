@@ -53,14 +53,16 @@ class Selecao(BaseModel):
     pautas: list[Pauta]
 
 
-def selecionar(tema: dict, posts: list[dict], oficiais: list[dict], cfg: dict, execucao_id: int) -> list[dict]:
+def selecionar(tema: dict, posts: list[dict], oficiais: list[dict], cfg: dict, execucao_id: int,
+               ja_publicadas: list[str] | None = None) -> list[dict]:
     modelo = cfg["modelos"]["selecao"]
     fmt_of = "\n".join(f"- [{i['fonte']}] {i['titulo']} ({i['publicado_em'] or 's/d'}) {i['link']}\n  {i['resumo'][:300]}"
                        for i in oficiais) or "(nenhum)"
     fmt_x = "\n".join(f"- @{p['autor']}: {p['texto'][:400]} {p['link']}" for p in posts) or "(nenhum)"
     entrada = prompts.montar("selecao", tema=tema["nome"], descricao=tema["descricao"],
                              quantidade=tema["candidatos"], afirmacoes=cfg["limites"]["afirmacoes_por_candidato"],
-                             itens_oficiais=fmt_of, posts=fmt_x)
+                             itens_oficiais=fmt_of, posts=fmt_x,
+                             ja_publicadas="\n".join(f"- {t}" for t in (ja_publicadas or [])) or "(nenhuma)")
     reserva = custos.reservar("selecao")
     try:
         resp = _stream_openai(_openai(), model=modelo, input=[{"role": "user", "content": entrada}],
@@ -114,6 +116,17 @@ def verificar(afirmacao: str, tema_id: str, cfg: dict, execucao_id: int) -> dict
 # Confirmação (Claude) ------------------------------------------------------------------------
 
 def confirmar(afirmacao: str, verificacao: dict, tema_id: str, cfg: dict, execucao_id: int) -> dict:
+    """Confirma com o Claude; repete uma vez se a resposta vier sem o objeto JSON pedido
+    (por exemplo, quando a chamada termina pedindo outra ferramenta). Sem resposta válida
+    na segunda tentativa, a afirmação é tratada como não confirmada."""
+    r = _confirmar_uma_vez(afirmacao, verificacao, tema_id, cfg, execucao_id)
+    if r.pop("_sem_json", False):
+        r = _confirmar_uma_vez(afirmacao, verificacao, tema_id, cfg, execucao_id)
+        r.pop("_sem_json", None)
+    return r
+
+
+def _confirmar_uma_vez(afirmacao: str, verificacao: dict, tema_id: str, cfg: dict, execucao_id: int) -> dict:
     modelo = cfg["modelos"]["confirmacao"]
     pedido = dict(
         model=modelo, max_tokens=8000, output_config={"effort": "medium"},
@@ -154,8 +167,12 @@ def confirmar(afirmacao: str, verificacao: dict, tema_id: str, cfg: dict, execuc
         r = json.loads(m.group(0)) if m else {}
     except json.JSONDecodeError:
         r = {}
+    if not r:
+        return {"concorda": False, "status": None, "justificativa":
+                f"o confirmador não devolveu resposta válida (stop_reason={msg.stop_reason})",
+                "modelo": modelo_usado, "_sem_json": True}
     r.setdefault("concorda", False)
-    r.setdefault("justificativa", "resposta fora do formato" if not r else "")
+    r.setdefault("justificativa", "")
     r["modelo"] = modelo_usado
     return r
 

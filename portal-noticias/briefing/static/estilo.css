@@ -49,7 +49,7 @@ button.principal { background: var(--marca); border-color: var(--marca); color: 
 .referencia { font-size: .9rem; padding: 10px 0; border-top: 1px solid var(--borda); }
 .referencia:first-child { border-top: 0; }
 .selo { display: inline-block; font-size: .78rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
-  border: 1px solid currentColor; margin-right: 6px; }
+  border: 1px solid currentColor; margin-right: 6px; white-space: nowrap; }
 .selo.aprovada, .selo.publicado, .selo.concluida { color: var(--ok); }
 .selo.cortada, .selo.descartado, .selo.interrompida_teto, .selo.concluida_com_erros { color: var(--alerta); }
 .selo.em_andamento, .selo.em_verificacao { color: var(--neutro); }
@@ -64,7 +64,9 @@ textarea { min-height: 72px; }
 .numero strong { display: block; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
 .tabela { width: 100%; border-collapse: collapse; font-size: .9rem; font-variant-numeric: tabular-nums; }
 .tabela th, .tabela td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--borda); vertical-align: top; }
+.tabela th { white-space: nowrap; }
 .rolagem { overflow-x: auto; }
+@media (max-width: 480px) { .tabela { font-size: .82rem; } .tabela th, .tabela td { padding: 6px 4px; } }
 .aviso { background: var(--superficie); border-left: 4px solid var(--destaque); padding: 10px 14px; border-radius: 8px; }
 .erro { color: var(--alerta); }
 .login { max-width: 380px; margin: 48px auto; }

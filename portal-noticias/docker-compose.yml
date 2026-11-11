@@ -1,0 +1,9 @@
+services:
+  briefing:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"   # exponha à internet só por trás de um proxy com HTTPS (Caddy, por exemplo)
+    volumes:
+      - ./dados:/dados          # banco SQLite e áudios; a cópia de segurança é esta pasta

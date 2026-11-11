@@ -84,13 +84,23 @@ def _tema(tema: dict, cfg: dict, ex: Execucao) -> list[int]:
     if not posts and not oficiais:
         return []
 
-    pautas = ia.selecionar(tema, posts, oficiais, cfg, ex.id)
+    ja = [dict(r) for r in db.consultar(
+        "SELECT n.titulo, c.origens FROM noticias n JOIN candidatos c ON c.id = n.candidato_id "
+        "WHERE n.data_edicao = ?", (ex.data,))]
+    links_publicados = {o for r in ja for o in json.loads(r["origens"] or "[]")}
+    pautas = ia.selecionar(tema, posts, oficiais, cfg, ex.id, [r["titulo"] for r in ja])
     ex.log(f"[{tid}] {len(pautas)} pautas selecionadas")
     minimo = int(cfg["limites"]["minimo_afirmacoes_aprovadas"])
     publicadas: list[int] = []
     for pauta in pautas:
         cand = db.inserir("candidatos", execucao_id=ex.id, tema=tid, titulo=pauta["titulo"], resumo=pauta["resumo"],
                           origens=pauta["origens"], status="em_verificacao")
+        repetidos = links_publicados & set(pauta["origens"])
+        if repetidos:
+            db.atualizar("candidatos", cand, status="descartado",
+                         motivo=f"já publicada hoje (mesma origem: {sorted(repetidos)[0]})")
+            ex.log(f"[{tid}] descartada por repetição: {pauta['titulo'][:80]}")
+            continue
         if len(publicadas) >= int(tema["publicar"]):
             db.atualizar("candidatos", cand, status="descartado", motivo="limite de notícias do tema já atingido")
             continue
@@ -118,6 +128,7 @@ def _tema(tema: dict, cfg: dict, ex: Execucao) -> list[int]:
         db.atualizar("candidatos", cand, status="publicado",
                      motivo=f"{len(aprovadas)} de {len(regs)} afirmações aprovadas; status: {resumo}")
         publicadas.append(nid)
+        links_publicados |= set(pauta["origens"])
         ex.log(f"[{tid}] publicada: {texto['titulo'][:90]}")
         _audio(nid, "noticia", f"{texto['titulo']}. {texto['roteiro']}", tid, cfg, ex)
     return publicadas
