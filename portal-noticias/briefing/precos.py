@@ -24,6 +24,10 @@ TOKENS = {
     # Anthropic
     "claude-opus-5-5": (4.00, 0.20, 20.00),
     "claude-sonnet-5-5": (2.00, 0.10, 10.00),
+    # Modelos que podem responder como reserva (fallbacks "default"); cache = 10% da entrada
+    "claude-sonnet-5": (2.00, 0.20, 10.00),
+    "claude-opus-5": (5.00, 0.50, 25.00),
+    "claude-opus-4-8": (5.00, 0.50, 25.00),
     "claude-haiku-5-5": (0.10, 0.01, 0.50),
 }
 

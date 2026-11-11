@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block titulo %}Painel · Briefing de Notícias{% endblock %}
+{% block conteudo %}
+<h1>Painel</h1>
+{% if aviso %}<p class="aviso">{{ aviso }}</p>{% endif %}
+
+<section class="cartao">
+  <div class="numeros">
+    <div class="numero"><span class="sutil">Gasto hoje</span><strong>US$ {{ '%.2f'|format(gasto_dia) }}</strong><span class="sutil">teto US$ {{ '%.2f'|format(cfg.tetos.diario_usd) }}</span></div>
+    <div class="numero"><span class="sutil">Gasto no mês</span><strong>US$ {{ '%.2f'|format(gasto_mes) }}</strong><span class="sutil">teto US$ {{ '%.2f'|format(cfg.tetos.mensal_usd) }}</span></div>
+    <div class="numero"><span class="sutil">Próxima execução</span><strong>{{ proxima.strftime('%d/%m %H:%M') if proxima else 'desligada' }}</strong></div>
+  </div>
+</section>
+
+<section class="cartao">
+  <h2>Executar agora</h2>
+  {% if em_andamento %}<p class="aviso">Há uma execução em andamento. Atualize a página para acompanhar.</p>{% endif %}
+  <form method="post" action="/painel/executar">
+    <p class="sutil">Sem marcar nenhum tema, roda todos os temas ativos.</p>
+    <div class="grade">{% for t in cfg.temas if t.ativo %}<label><input type="checkbox" name="tema" value="{{ t.id }}">{{ t.nome }}</label>{% endfor %}</div>
+    <button class="principal" type="submit" {% if em_andamento %}disabled{% endif %}>Executar</button>
+  </form>
+</section>
+
+<section class="cartao">
+  <h2>Execuções recentes</h2>
+  <div class="rolagem"><table class="tabela">
+    <tr><th>#</th><th>Início</th><th>Origem</th><th>Situação</th><th>Gasto</th></tr>
+    {% for e in execucoes %}
+    <tr><td><a href="/painel/execucao/{{ e.id }}">{{ e.id }}</a></td><td>{{ e.inicio[8:10] }}/{{ e.inicio[5:7] }} {{ e.inicio[11:16] }}</td>
+      <td>{{ e.gatilho }}</td><td><span class="selo {{ e.status }}">{{ e.status|replace('_', ' ') }}</span></td><td>US$ {{ '%.2f'|format(e.gasto) }}</td></tr>
+    {% else %}<tr><td colspan="5" class="sutil">Nenhuma execução ainda.</td></tr>{% endfor %}
+  </table></div>
+</section>
+
+<section class="cartao">
+  <h2>Gasto do mês por etapa</h2>
+  <div class="rolagem"><table class="tabela">
+    <tr><th>Etapa</th><th>Chamadas</th><th>Falhas</th><th>Total</th></tr>
+    {% for r in por_etapa %}<tr><td>{{ r.etapa }}</td><td>{{ r.chamadas }}</td><td>{{ r.falhas }}</td><td>US$ {{ '%.2f'|format(r.total) }}</td></tr>
+    {% else %}<tr><td colspan="4" class="sutil">Sem gastos neste mês.</td></tr>{% endfor %}
+  </table></div>
+</section>
+
+<section class="cartao">
+  <h2>Configuração geral</h2>
+  <form method="post" action="/painel/geral">
+    <div class="grade">
+      <label>Teto diário (US$) <input name="diario_usd" inputmode="decimal" value="{{ cfg.tetos.diario_usd }}"></label>
+      <label>Teto mensal (US$) <input name="mensal_usd" inputmode="decimal" value="{{ cfg.tetos.mensal_usd }}"></label>
+      <label>Horário diário <input name="hora" type="time" value="{{ cfg.agenda.hora }}"></label>
+    </div>
+    <label><input type="checkbox" name="agenda_ativa" {% if cfg.agenda.ativa %}checked{% endif %}>Rodar automaticamente todos os dias</label>
+    <details><summary>Modelos por etapa</summary>
+      <p class="sutil">Troque aqui quando um provedor desligar um modelo. Valores atuais medidos na Etapa 0.</p>
+      <div class="grade">{% for k, v in cfg.modelos.items() %}<label>{{ k }} <input name="modelo_{{ k }}" value="{{ v }}"></label>{% endfor %}</div>
+    </details>
+    <button class="principal" type="submit">Salvar</button>
+  </form>
+</section>
+
+<section class="cartao">
+  <h2>Temas</h2>
+  <form method="post" action="/painel/temas">
+    {% for t in cfg.temas %}
+    <details {% if loop.first %}open{% endif %}><summary>{{ t.nome }}{% if not t.ativo %} (desativado){% endif %}</summary>
+      <label><input type="checkbox" name="{{ t.id }}_ativo" {% if t.ativo %}checked{% endif %}>Ativo</label>
+      <label>Nome <input name="{{ t.id }}_nome" value="{{ t.nome }}"></label>
+      <label>Descrição (orienta a coleta e a seleção) <textarea name="{{ t.id }}_descricao">{{ t.descricao }}</textarea></label>
+      <div class="grade">
+        <label>Pautas avaliadas <input name="{{ t.id }}_candidatos" type="number" min="1" max="6" value="{{ t.candidatos }}"></label>
+        <label>Notícias publicadas (máximo) <input name="{{ t.id }}_publicar" type="number" min="0" max="6" value="{{ t.publicar }}"></label>
+      </div>
+      <label>Perfis do X (até 20, separados por vírgula; vazio = busca livre) <textarea name="{{ t.id }}_perfis">{{ t.perfis|join(', ') }}</textarea></label>
+      <label>Feeds RSS oficiais (um por linha) <textarea name="{{ t.id }}_feeds">{{ t.feeds|join('\n') }}</textarea></label>
+    </details>
+    {% endfor %}
+    <button class="principal" type="submit">Salvar temas</button>
+  </form>
+</section>
+{% endblock %}

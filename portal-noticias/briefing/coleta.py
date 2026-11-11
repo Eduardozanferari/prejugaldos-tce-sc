@@ -157,10 +157,15 @@ def ler_feed(url: str, horas: int) -> list[dict]:
 def coletar_oficial(tema: dict, cfg: dict) -> tuple[list[dict], list[str]]:
     itens, erros = [], []
     for url in tema.get("feeds", []):
-        try:
-            itens.extend(ler_feed(url, int(cfg["limites"]["horas_janela"])))
-        except Exception as e:  # um feed fora do ar não interrompe os demais
-            erros.append(f"{url}: {type(e).__name__}: {str(e)[:150]}")
+        for tentativa in (1, 2):
+            try:
+                itens.extend(ler_feed(url, int(cfg["limites"]["horas_janela"])))
+                break
+            except Exception as e:  # um feed fora do ar não interrompe os demais
+                if tentativa == 2:
+                    erros.append(f"{url}: {type(e).__name__}: {str(e)[:150]}")
+                else:
+                    time.sleep(3)
     itens.sort(key=lambda i: i["publicado_em"] or "", reverse=True)
     vistos, unicos = set(), []
     for i in itens:

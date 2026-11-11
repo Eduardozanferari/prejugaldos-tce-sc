@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}{{ n.titulo }} · Briefing de Notícias{% endblock %}
+{% block conteudo %}
+{% set nomes = {} %}{% for t in cfg.temas %}{% set _ = nomes.update({t.id: t.nome}) %}{% endfor %}
+<p class="sutil"><a href="/edicao/{{ n.data_edicao }}">Edição de {{ n.data_edicao[8:10] }}/{{ n.data_edicao[5:7] }}</a> · {{ nomes.get(n.tema, n.tema) }}</p>
+<article>
+  <h1>{{ n.titulo }}</h1>
+  <p class="sutil">{{ n.linha_fina }}</p>
+  {% if audio %}<audio controls preload="none" src="/audio/{{ audio.arquivo }}" style="width:100%"></audio>{% endif %}
+  <div class="corpo">{{ n.corpo|paragrafos }}</div>
+</article>
+
+<section class="cartao">
+  <h2>Fontes</h2>
+  {% for r in n.referencias %}
+  <div class="referencia" id="ref-{{ r.n }}">
+    <strong>[{{ r.n }}]</strong> {{ r.texto }}<br>
+    <a href="{{ r.url }}" rel="noopener noreferrer" target="_blank">{{ r.url }}</a>
+    {% if r.trecho %}<blockquote>{{ r.trecho }}</blockquote>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+
+<section class="cartao">
+  <details>
+    <summary>Como esta notícia foi verificada</summary>
+    <p class="sutil">Cada afirmação central foi checada pela OpenAI com busca na web e, quando confirmada, conferida de forma independente pelo Claude, que abriu a fonte. Só as afirmações aprovadas pelos dois entram no texto.</p>
+    {% for a in afirmacoes %}
+    <div class="referencia">
+      <span class="selo {{ a.decisao }}">{{ 'aprovada' if a.decisao == 'aprovada' else 'cortada' }}</span>{{ a.texto }}
+      <p class="sutil">Verificador: {{ a.status_verificador }}{% if a.justificativa_verificador %}. {{ a.justificativa_verificador }}{% endif %}</p>
+      {% if a.modelo_confirmador %}<p class="sutil">Confirmador ({{ a.modelo_confirmador }}): {{ 'concorda' if a.confirmador_concorda else 'não concorda' }}{% if a.status_confirmador %}, {{ a.status_confirmador }}{% endif %}. {{ a.justificativa_confirmador or '' }}</p>{% endif %}
+    </div>
+    {% endfor %}
+    {% if cand.origens %}<p class="sutil">Origem da pauta:</p><ul class="sutil">{% for o in cand.origens %}<li><a href="{{ o }}" rel="noopener noreferrer" target="_blank">{{ o }}</a></li>{% endfor %}</ul>{% endif %}
+  </details>
+</section>
+{% endblock %}

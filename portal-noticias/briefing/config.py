@@ -31,7 +31,7 @@ PADRAO = {
         "coleta_x": "grok-4.7",
         "selecao": "gpt-6.1-terra",
         "verificacao": "gpt-6.1-sol",
-        "confirmacao": "claude-haiku-5-5",
+        "confirmacao": "claude-sonnet-5-5",  # teste 2C: 0 erros publicados, 0 verdadeiras bloqueadas
         "redacao": "gpt-6.1-sol",
         "voz": "xai",            # xai (medido no teste 3); elevenlabs quando a chave for corrigida
         "voz_id": "eve",

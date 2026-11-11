@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}Execução {{ ex.id }} · Briefing de Notícias{% endblock %}
+{% block conteudo %}
+<p class="sutil"><a href="/painel">Painel</a></p>
+<h1>Execução {{ ex.id }} <span class="selo {{ ex.status }}">{{ ex.status|replace('_', ' ') }}</span></h1>
+<p class="sutil">Início {{ ex.inicio }}{% if ex.fim %} · fim {{ ex.fim }}{% endif %} · prompts versão {{ ex.versao_prompts }}</p>
+
+<section class="cartao"><h2>Registro</h2><pre class="log">{{ ex.mensagem or '' }}</pre></section>
+
+<section class="cartao"><h2>Custos</h2>
+  <div class="rolagem"><table class="tabela">
+    <tr><th>Tema</th><th>Etapa</th><th>Chamadas</th><th>Falhas</th><th>Total</th></tr>
+    {% for g in gastos %}<tr><td>{{ g.tema or '-' }}</td><td>{{ g.etapa }}</td><td>{{ g.chamadas }}</td><td>{{ g.falhas }}</td><td>US$ {{ '%.3f'|format(g.total) }}</td></tr>{% endfor %}
+  </table></div>
+</section>
+
+<section class="cartao"><h2>Pautas avaliadas</h2>
+  {% for c in candidatos %}
+  <details class="referencia"><summary><span class="selo {{ c.status }}">{{ c.status }}</span>[{{ c.tema }}] {{ c.titulo }}</summary>
+    <p class="sutil">{{ c.motivo or '' }}</p>
+    {% for a in c.afirmacoes %}
+      <p><span class="selo {{ a.decisao }}">{{ a.decisao }}</span>{{ a.texto }}<br>
+      <span class="sutil">Verificador: {{ a.status_verificador }}{% if a.url_verificador %} · <a href="{{ a.url_verificador }}" rel="noopener noreferrer" target="_blank">fonte</a>{% endif %}. {{ a.justificativa_verificador or '' }}</span><br>
+      {% if a.modelo_confirmador %}<span class="sutil">Confirmador: {{ 'concorda' if a.confirmador_concorda else 'não concorda' }} ({{ a.status_confirmador }}). {{ a.justificativa_confirmador or '' }}</span>{% endif %}</p>
+    {% endfor %}
+  </details>
+  {% else %}<p class="sutil">Nenhuma pauta registrada.</p>{% endfor %}
+</section>
+{% endblock %}

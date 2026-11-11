@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1f3a5f">
+<title>{% block titulo %}Briefing de Notícias{% endblock %}</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icone.svg">
+<link rel="stylesheet" href="/static/estilo.css?v=1">
+</head>
+<body>
+<header class="topo">
+  <a class="marca" href="/">Briefing de Notícias</a>
+  {% if request.session.get('usuario') %}
+  <nav><a href="/">Edição</a><a href="/painel">Painel</a><a href="/sair">Sair</a></nav>
+  {% endif %}
+</header>
+<main>{% block conteudo %}{% endblock %}</main>
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

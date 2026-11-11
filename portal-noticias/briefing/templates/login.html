@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block titulo %}Entrar · Briefing de Notícias{% endblock %}
+{% block conteudo %}
+<form class="cartao login" method="post" action="/login">
+  <h1>Entrar</h1>
+  {% if erro %}<p class="erro">Usuário ou senha incorretos.</p>{% endif %}
+  <label>Usuário <input name="usuario" autocomplete="username" required></label>
+  <label>Senha <input name="senha" type="password" autocomplete="current-password" required></label>
+  <button type="submit">Entrar</button>
+</form>
+{% endblock %}

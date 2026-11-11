@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block conteudo %}
+{% if not ed or not ed.noticias %}
+<section class="cartao"><h1>Nenhuma edição ainda</h1>
+<p>A primeira edição aparece aqui depois da primeira execução. Ela pode ser iniciada no <a href="/painel">painel</a>.</p></section>
+{% else %}
+{% set nomes = {} %}{% for t in cfg.temas %}{% set _ = nomes.update({t.id: t.nome}) %}{% endfor %}
+<section class="cabecalho-edicao">
+  <h1>Edição de {{ ed.data[8:10] }}/{{ ed.data[5:7] }}/{{ ed.data[0:4] }}</h1>
+  <p class="sutil">{{ ed.noticias|length }} notícias, cada afirmação conferida por dois verificadores.</p>
+  {% if datas|length > 1 %}
+  <label class="sutil">Outras edições:
+    <select onchange="location.href='/edicao/'+this.value">
+      {% for d in datas %}<option value="{{ d }}" {% if d == ed.data %}selected{% endif %}>{{ d[8:10] }}/{{ d[5:7] }}/{{ d[0:4] }}</option>{% endfor %}
+    </select></label>
+  {% endif %}
+</section>
+
+<section class="tocador cartao" id="tocador">
+  <div class="tocador-info"><strong id="faixa-titulo">Ouvir a edição</strong><span id="faixa-sub" class="sutil">resumo e notícias em sequência</span></div>
+  <div class="tocador-botoes">
+    <button type="button" id="anterior" aria-label="Faixa anterior">Anterior</button>
+    <button type="button" id="tocar" class="principal">Ouvir tudo</button>
+    <button type="button" id="proxima" aria-label="Próxima faixa">Próxima</button>
+  </div>
+  <audio id="audio" preload="none"></audio>
+</section>
+
+{% set ns = namespace(tema=None) %}
+{% for n in ed.noticias %}
+  {% if n.tema != ns.tema %}{% set ns.tema = n.tema %}<h2 class="tema">{{ nomes.get(n.tema, n.tema) }}</h2>{% endif %}
+  <article class="cartao noticia-resumo">
+    <h3><a href="/noticia/{{ n.id }}">{{ n.titulo }}</a></h3>
+    <p>{{ n.linha_fina }}</p>
+    {% if n.audio %}<button type="button" class="ouvir" data-src="/audio/{{ n.audio.arquivo }}">Ouvir</button>{% endif %}
+  </article>
+{% endfor %}
+<script>
+window.FAIXAS = [
+  {% if ed.resumo %}{"titulo": "Resumo do dia", "sub": "Briefing de Notícias", "src": "/audio/{{ ed.resumo.arquivo }}"},{% endif %}
+  {% for n in ed.noticias if n.audio %}{"titulo": {{ n.titulo|tojson }}, "sub": {{ nomes.get(n.tema, n.tema)|tojson }}, "src": "/audio/{{ n.audio.arquivo }}"},{% endfor %}
+];
+</script>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/tocador.js?v=1"></script>{% endblock %}
