@@ -8,7 +8,8 @@ Documentação consultada em 10/11/2026:
 https://docs.x.ai/developers/tools/x-search (parâmetros from_date/to_date,
 allowed_x_handles, usage.server_side_tool_usage_details.x_posts_fetched).
 
-Uso:  XAI_API_KEY=... python teste1_coleta_x.py [--max-turns 3]
+Uso:  XAI_API_KEY=... python teste1_coleta_x.py [--max-turns 3] [--perfis]
+Com --perfis (teste 1B), a busca fica restrita aos perfis curados de PERFIS.
 """
 import argparse
 import datetime as dt
@@ -32,6 +33,16 @@ TEMAS = {
     "direito": "Direito no Brasil: leis novas, mudanças normativas e debates jurídicos relevantes",
     "tecnologia": "Tecnologia: lançamentos de produtos e inovações anunciadas por fabricantes",
     "ciencia": "Curiosidade e ciência: descobertas científicas, em especial sobre o cérebro humano",
+}
+
+
+# Perfis curados por tema (teste 1B). Contas institucionais e veículos especializados;
+# o teste registra quais perfis de fato trouxeram posts.
+PERFIS = {
+    "direito": ["STF_oficial", "STJnoticias", "TSEjusbr", "CNJ_oficial", "camaradeputados",
+                "SenadoFederal", "OABNacional", "JotaInfo", "migalhas"],
+    "tecnologia": ["Apple", "Google", "Samsung", "nvidia", "Microsoft", "OpenAI", "AnthropicAI",
+                   "xai", "intel", "AMD", "Qualcomm", "tecmundo", "tecnoblog", "canaltech"],
 }
 
 
@@ -86,16 +97,20 @@ def chamar_responses_sse(payload: dict, chave: str, timeout: int = 600) -> dict:
         return final
 
 
-def executar(chave: str, tema: str, descricao: str, max_turns: int) -> dict:
+def executar(chave: str, tema: str, descricao: str, max_turns: int,
+             handles: Optional[list[str]] = None) -> dict:
     hoje = dt.datetime.now(dt.timezone.utc).date()
+    ferramenta = {
+        "type": "x_search",
+        "from_date": (hoje - dt.timedelta(days=1)).isoformat(),
+        "to_date": (hoje + dt.timedelta(days=1)).isoformat(),
+    }
+    if handles:
+        ferramenta["allowed_x_handles"] = handles[:20]
     payload = {
         "model": MODELO,
         "input": [{"role": "user", "content": PROMPT.format(tema=descricao)}],
-        "tools": [{
-            "type": "x_search",
-            "from_date": (hoje - dt.timedelta(days=1)).isoformat(),
-            "to_date": (hoje + dt.timedelta(days=1)).isoformat(),
-        }],
+        "tools": [ferramenta],
         "reasoning": {"effort": "low"},
         "max_turns": max_turns,
         "text": {"format": {"type": "json_schema", "name": "coleta", "strict": True,
@@ -150,11 +165,15 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--max-turns", type=int, default=2)
     ap.add_argument("--temas", nargs="*", default=list(TEMAS), help="temas a executar; os demais são mantidos do arquivo anterior")
+    ap.add_argument("--perfis", action="store_true",
+                    help="Teste 1B: restringe a busca aos perfis curados (allowed_x_handles) e grava em teste1b_perfis.json")
     args = ap.parse_args()
     chave = os.environ["XAI_API_KEY"]
-    destino = SAIDA / "teste1_coleta_x.json"
+    if args.perfis:
+        args.temas = [t for t in args.temas if t in PERFIS]
+    destino = SAIDA / ("teste1b_perfis.json" if args.perfis else "teste1_coleta_x.json")
     resultado = {"data": dt.datetime.now(dt.timezone.utc).isoformat(), "execucoes": [], "estabilidade": {}}
-    if destino.exists() and set(args.temas) != set(TEMAS):
+    if destino.exists() and not args.perfis and set(args.temas) != set(TEMAS):
         anterior = json.loads(destino.read_text(encoding="utf-8"))
         resultado["execucoes"] = [e for e in anterior["execucoes"] if e["tema"] not in args.temas]
         resultado["estabilidade"] = {k: v for k, v in anterior["estabilidade"].items() if k not in args.temas}
@@ -164,7 +183,7 @@ def main() -> None:
         execs = []
         for i in (1, 2):
             print(f"[{tema}] execução {i}...", flush=True)
-            r = executar(chave, tema, descricao, args.max_turns)
+            r = executar(chave, tema, descricao, args.max_turns, PERFIS.get(tema) if args.perfis else None)
             r["execucao"] = i
             execs.append(r)
             print(f"  posts buscados: {(r['uso'].get('server_side_tool_usage_details') or {}).get('x_posts_fetched')}"
